@@ -42,8 +42,6 @@ const TOTAL_STEPS = 4;
 
 // Activity constraints
 const MIN_ACTIVITIES = 2;
-const MAX_ACTIVITIES_STANDARD = 2;
-const MAX_ACTIVITIES_INTERNATIONAL = 3;
 const MIN_PHOTOS = 1;
 const MAX_PHOTOS = 6;
 
@@ -72,6 +70,12 @@ const ACTIVITY_CONFIG = [
     number: 3,
     title: 'Cultural Activity 3',
     prompt: 'For INTERNATIONAL or FOREIGN LANGUAGE IMMERSION teachers – all GRADE LEVELS',
+    hasExtraFields: false,
+    optional: true
+  },
+  {
+    title: 'Additional Cultural Activity',
+    prompt: 'Describe an additional cultural activity, including its topic, participants, and impact.',
     hasExtraFields: false,
     optional: true
   }
@@ -640,22 +644,9 @@ function isInternationalSchoolType() {
 }
 
 function updateThirdActivityVisibility(isInternational) {
-  const addBtn = document.getElementById('addActivityBtn');
-
-  if (isInternational) {
-    // Auto-add third activity if not already present
-    if (report.activities.length < MAX_ACTIVITIES_INTERNATIONAL) {
-      addActivity(2); // Activity 3 (Cross-Cultural Outreach)
-    }
-    // Hide add button since we auto-add
-    addBtn.style.display = 'none';
-  } else {
-    // Remove third activity if it exists (not international school)
-    if (report.activities.length > MAX_ACTIVITIES_STANDARD) {
-      removeActivity(2);
-    }
-    // Hide add button for non-international schools
-    addBtn.style.display = 'none';
+  // Add the usual third activity when applicable, preserving any existing activities.
+  if (isInternational && !report.activities.some(activity => activity.typeIndex === 2)) {
+    addActivity(2);
   }
 
   updateActivityCount();
@@ -669,15 +660,9 @@ function initActivitySection() {
   const addBtn = document.getElementById('addActivityBtn');
 
   addBtn.addEventListener('click', () => {
-    const maxActivities = isInternationalSchoolType() ? MAX_ACTIVITIES_INTERNATIONAL : MAX_ACTIVITIES_STANDARD;
-    if (report.activities.length < maxActivities) {
-      addActivity(report.activities.length);
-      updateActivityCount();
-    }
+    addActivity(3); // Additional activities use the general cultural activity fields.
+    updateActivityCount();
   });
-
-  // Initially hide add button (will be shown for international schools)
-  addBtn.style.display = 'none';
 }
 
 function addActivity(activityTypeIndex) {
@@ -738,9 +723,9 @@ function renderActivity(index) {
     extraFieldsContainer.style.display = 'none';
   }
 
-  // Show/hide remove button (only for optional third activity)
+  // Allow removing the optional third activity and additional activities.
   const removeBtn = card.querySelector('.btn-remove-activity');
-  if (activity.typeIndex === 2) {
+  if (activity.typeIndex >= 2) {
     removeBtn.style.display = 'inline-flex';
   } else {
     removeBtn.style.display = 'none';
@@ -925,6 +910,8 @@ function moveActivity(currentIndex, direction) {
 
   if (newIndex < 0 || newIndex >= report.activities.length) return;
 
+  syncActivitiesFromForm();
+
   // Swap in state
   const temp = report.activities[currentIndex];
   report.activities[currentIndex] = report.activities[newIndex];
@@ -935,16 +922,17 @@ function moveActivity(currentIndex, direction) {
 }
 
 function removeActivity(index) {
-  // Only allow removing the third (optional) activity
+  // Keep the two base activities.
   if (report.activities.length <= MIN_ACTIVITIES) {
     alert(`Minimum ${MIN_ACTIVITIES} activities required.`);
     return;
   }
 
-  // Only the third activity can be removed
-  if (index !== 2) {
+  if (index < MIN_ACTIVITIES || !report.activities[index]) {
     return;
   }
+
+  syncActivitiesFromForm();
 
   // Clean up photo preview URLs
   const activity = report.activities[index];
@@ -965,39 +953,7 @@ function removeActivity(index) {
 function reRenderAllActivities() {
   const container = document.getElementById('activitiesContainer');
 
-  // Store current form values before clearing
-  const savedValues = report.activities.map((activity, i) => {
-    const card = container.querySelector(`.activity-card[data-activity-index="${i}"]`);
-    if (card) {
-      const values = {
-        date: card.querySelector('.activity-date')?.value || '',
-        location: card.querySelector('.activity-location')?.value || '',
-        participants: card.querySelector('.activity-participants')?.value || '',
-        description: card.querySelector('.activity-description')?.value || '',
-        impact: card.querySelector('.activity-impact')?.value || ''
-      };
-
-      // Extra fields for Activity 2
-      if (activity.typeIndex === 1) {
-        values.medium = card.querySelector('.activity-medium')?.value || '';
-        values.mediumOther = card.querySelector('.activity-medium-other')?.value || '';
-        values.foreignCountry = card.querySelector('.activity-foreign-country')?.value || '';
-        values.foreignSchoolName = card.querySelector('.activity-foreign-school-name')?.value || '';
-        values.foreignSchoolAddress = card.querySelector('.activity-foreign-school-address')?.value || '';
-      }
-
-      return values;
-    }
-    return null;
-  }).filter(Boolean);
-
-  // Update state with saved values
-  savedValues.forEach((values, i) => {
-    if (report.activities[i]) {
-      Object.assign(report.activities[i], values);
-    }
-  });
-
+  // Callers sync the form before changing activity order or removing an activity.
   // Clear container
   container.innerHTML = '';
 
@@ -1056,26 +1012,13 @@ function reRenderAllActivities() {
 
 function updateActivityButtons() {
   const addBtn = document.getElementById('addActivityBtn');
-  const maxActivities = isInternationalSchoolType() ? MAX_ACTIVITIES_INTERNATIONAL : MAX_ACTIVITIES_STANDARD;
-
-  // Show/hide add button based on school type and current count
-  if (isInternationalSchoolType() && report.activities.length < maxActivities) {
-    addBtn.style.display = 'inline-flex';
-    addBtn.disabled = false;
-  } else {
-    addBtn.style.display = 'none';
-  }
+  addBtn.style.display = 'inline-flex';
+  addBtn.disabled = false;
 }
 
 function updateActivityCount() {
   const countEl = document.getElementById('activityCount');
-  const maxActivities = isInternationalSchoolType() ? MAX_ACTIVITIES_INTERNATIONAL : MAX_ACTIVITIES_STANDARD;
-
-  if (isInternationalSchoolType()) {
-    countEl.textContent = `${report.activities.length} of ${maxActivities} activities`;
-  } else {
-    countEl.textContent = `${report.activities.length} activities`;
-  }
+  countEl.textContent = `${report.activities.length} activities`;
 }
 
 // ========================================
